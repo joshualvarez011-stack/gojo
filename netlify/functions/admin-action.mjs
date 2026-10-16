@@ -5,6 +5,16 @@ import { validateReservationInput, cleanText } from './_lib/validation.mjs';
 import { json, readJson, safeError } from './_lib/http.mjs';
 
 const STATUSES=new Set(['confirmed','arrived','seated','completed','cancelled','no_show']);
+const TERMINAL_STATUSES=new Set(['completed','cancelled','no_show']);
+const ALLOWED_TRANSITIONS={
+  pending:new Set(['confirmed','cancelled']),
+  confirmed:new Set(['arrived','seated','completed','cancelled','no_show']),
+  arrived:new Set(['seated','completed','cancelled']),
+  seated:new Set(['completed']),
+  completed:new Set(),
+  cancelled:new Set(),
+  no_show:new Set()
+};
 
 export default async(req)=>{
   try{
@@ -19,6 +29,9 @@ export default async(req)=>{
       return sql.begin(async tx=>{
         const [r]=await tx`SELECT * FROM reservations WHERE id=${id}::uuid AND restaurant_id=${context.restaurant_id} FOR UPDATE`;
         if(!r) throw Object.assign(new Error('Bokningen hittades inte.'),{status:404,code:'not_found'});
+        if(status===r.status) return json({ok:true,reservation:{id:String(r.id),status:r.status,visit_count_recorded:r.visit_count_recorded,no_show_count_recorded:r.no_show_count_recorded}});
+        if(!ALLOWED_TRANSITIONS[r.status]?.has(status)) throw Object.assign(new Error('Den statusändringen är inte tillåten.'),{status:409,code:'invalid_status_transition'});
+
         const recordVisit=status==='completed' && !r.visit_count_recorded;
         const recordNoShow=status==='no_show' && !r.no_show_count_recorded;
         const [updated]=await tx`UPDATE reservations SET
@@ -27,7 +40,7 @@ export default async(req)=>{
           visit_count_recorded=visit_count_recorded OR ${recordVisit},
           no_show_count_recorded=no_show_count_recorded OR ${recordNoShow}
           WHERE id=${r.id} RETURNING id::text,status,visit_count_recorded,no_show_count_recorded`;
-        if(status==='cancelled') await tx`UPDATE reservation_table_assignments SET active=false WHERE reservation_id=${r.id}`;
+        if(TERMINAL_STATUSES.has(status)) await tx`UPDATE reservation_table_assignments SET active=false WHERE reservation_id=${r.id}`;
         if(recordVisit && r.customer_id) await tx`UPDATE customers SET visit_count=visit_count+1,last_seen_at=now() WHERE id=${r.customer_id}`;
         if(recordNoShow && r.customer_id) await tx`UPDATE customers SET no_show_count=no_show_count+1,last_seen_at=now() WHERE id=${r.customer_id}`;
         await tx`INSERT INTO audit_logs (restaurant_id,actor_type,action,entity_type,entity_id,metadata) VALUES (${context.restaurant_id},'staff','reservation.status_changed','reservation',${r.id},${JSON.stringify({from:r.status,to:status})}::jsonb)`;
