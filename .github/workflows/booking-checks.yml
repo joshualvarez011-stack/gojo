@@ -1,0 +1,50 @@
+name: Booking checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [booking-system-v1]
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build public site
+        run: npm run build
+
+      - name: Check server JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find netlify/functions -type f -name '*.mjs' -print0)
+
+      - name: Verify public output isolation
+        shell: bash
+        run: |
+          test -f dist/index.html
+          test -f dist/boka.html
+          test -f dist/admin/index.html
+          test ! -e dist/netlify
+          test ! -e dist/tests
+          test ! -e dist/docs
