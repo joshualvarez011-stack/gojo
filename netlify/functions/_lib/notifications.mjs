@@ -22,7 +22,7 @@ export async function sendReservationEmail({reservationId,eventType,manageToken,
     return {sent:false,reason:'not_configured'};
   }
   const when=new Intl.DateTimeFormat('sv-SE',{timeZone:row.timezone,dateStyle:'full',timeStyle:'short'}).format(new Date(row.starts_at));
-  const manageUrl=manageToken?`${baseUrl}/hantera-bokning.html?code=${encodeURIComponent(row.confirmation_code)}&token=${encodeURIComponent(manageToken)}`:null;
+  const manageUrl=manageToken?`${baseUrl}/hantera-bokning.html#code=${encodeURIComponent(row.confirmation_code)}&token=${encodeURIComponent(manageToken)}`:null;
   const subjects={booking_created:`Bokningsbekräftelse · ${row.restaurant_name}`,booking_modified:`Din bokning är ändrad · ${row.restaurant_name}`,booking_cancelled:`Din bokning är avbokad · ${row.restaurant_name}`};
   const statusCopy=eventType==='booking_cancelled'?'Bokningen är avbokad.':eventType==='booking_modified'?'Din bokning har uppdaterats.':'Din bokning är bekräftad.';
   const html=`<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#17110d"><h1 style="font-family:Georgia,serif;font-weight:500;font-size:38px">${esc(row.restaurant_name)}</h1><p>${esc(statusCopy)}</p><div style="background:#f5ecdf;border-radius:14px;padding:18px;margin:22px 0"><strong>${esc(when)}</strong><br>${Number(row.party_size)} gäster<br>Bekräftelsekod: ${esc(row.confirmation_code)}</div>${manageUrl&&eventType!=='booking_cancelled'?`<p><a href="${esc(manageUrl)}" style="display:inline-block;background:#b95f30;color:white;text-decoration:none;padding:12px 18px;border-radius:999px">Hantera bokning</a></p>`:''}<p style="font-size:12px;color:#73685e">Frågor? Kontakta ${esc(row.restaurant_email||'restaurangen')}.</p></div>`;
