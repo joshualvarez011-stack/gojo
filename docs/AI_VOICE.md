@@ -68,3 +68,6 @@ AI:n ska:
 - Sätt separat rate limit och usage monitoring.
 - Definiera knowledge base med verifierade restaurangfakta.
 - Definiera fallback om AI eller telefoni ligger nere.
+
+## Credential hygiene
+Privata manage tokens ska skickas i POST-body/header, inte i URL/query string. Publika hanteringslänkar använder URL-fragment så token inte skickas till CDN/servern vid sidladdning.

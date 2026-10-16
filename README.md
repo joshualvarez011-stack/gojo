@@ -65,6 +65,10 @@ Se `docs/GOJO_CONFIRM_BEFORE_LIVE.md` innan skarp drift.
 
 Demo-läget använder endast browserns localStorage och skapar inga riktiga reservationer.
 
+## Public build
+
+Netlify publicerar endast `dist/`. `npm run build` kopierar endast publika HTML/CSS/JS/assets dit, så `netlify/functions`, migrations, tester och docs exponeras inte som statiska filer.
+
 ## Netlify Database
 
 Projektet följer Netlifys native migrationsstruktur:
@@ -99,7 +103,7 @@ Publikt:
 - `GET /api/restaurant`
 - `GET /api/availability?date=YYYY-MM-DD&partySize=2`
 - `POST /api/reservations`
-- `GET|POST /api/reservation/manage`
+- `POST /api/reservation/manage` (lookup/modify/cancel; private token skickas i request body)
 - `POST /api/waitlist`
 
 Admin:
@@ -118,6 +122,10 @@ npm test
 ```
 
 Nuvarande pure logic-suite: 11 tester för bordsval, kombinationer, tidsintervall, overlap samt inputvalidering.
+
+## Dataregion före skarp drift
+
+På Netlify Free kan Functions-regionen inte väljas fritt. För riktig gästdatabehandling ska GOJO:s dataskyddsupplägg och Netlify-region verifieras innan production; om EU-region krävs bör Functions/Database placeras i en EU-region på en plan som stödjer regionval.
 
 ## Känd gräns i denna arbetsmiljö
 
