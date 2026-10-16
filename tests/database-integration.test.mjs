@@ -132,3 +132,52 @@ test('adjacent assignments are allowed because ranges are half-open', { skip: sk
   `;
   assert.equal(count, 2);
 });
+
+test('terminal reservation status releases its table assignment', { skip: skipDatabase }, async () => {
+  const [tableRow] = await sql`
+    select id from dining_tables
+    where location_id = '22222222-2222-4222-8222-222222222222' and code = 'T7'
+  `;
+
+  const startsAt = '2026-11-08T18:00:00+01:00';
+  const endsAt = '2026-11-08T20:00:00+01:00';
+  const [reservation] = await sql`
+    insert into reservations (
+      restaurant_id, location_id, confirmation_code, manage_token_hash,
+      guest_name, guest_phone, party_size, starts_at, ends_at, status, source
+    ) values (
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      'DBTEST-E', 'dbtest-token-e', 'Terminal Test', '+46700000004', 2,
+      ${startsAt}, ${endsAt}, 'confirmed', 'web'
+    ) returning id
+  `;
+
+  await sql`
+    insert into reservation_table_assignments (reservation_id, table_id, during, active)
+    values (${reservation.id}, ${tableRow.id}, tstzrange(${startsAt}, ${endsAt}, '[)'), true)
+  `;
+
+  await sql`update reservations set status='no_show' where id=${reservation.id}`;
+  const [assignment] = await sql`
+    select active from reservation_table_assignments where reservation_id=${reservation.id}
+  `;
+  assert.equal(assignment.active, false);
+
+  const [replacement] = await sql`
+    insert into reservations (
+      restaurant_id, location_id, confirmation_code, manage_token_hash,
+      guest_name, guest_phone, party_size, starts_at, ends_at, status, source
+    ) values (
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      'DBTEST-F', 'dbtest-token-f', 'Replacement Test', '+46700000005', 2,
+      ${startsAt}, ${endsAt}, 'confirmed', 'web'
+    ) returning id
+  `;
+
+  await sql`
+    insert into reservation_table_assignments (reservation_id, table_id, during, active)
+    values (${replacement.id}, ${tableRow.id}, tstzrange(${startsAt}, ${endsAt}, '[)'), true)
+  `;
+});
