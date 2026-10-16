@@ -20,7 +20,7 @@ export async function cancelManagedReservation(code, manageToken) {
     const [reservation] = await tx`
       SELECT * FROM reservations WHERE confirmation_code=${code} AND manage_token_hash=${hashToken(manageToken)} FOR UPDATE`;
     if (!reservation) throw Object.assign(new Error('Bokningen hittades inte.'), { status: 404, code: 'not_found' });
-    if (reservation.status === 'cancelled') return { reservation };
+    if (reservation.status === 'cancelled') return { reservation, changed: false };
     if (['completed','no_show'].includes(reservation.status)) throw Object.assign(new Error('Bokningen kan inte längre avbokas online.'), { status: 409, code: 'not_cancellable' });
     const [updated] = await tx`
       UPDATE reservations SET status='cancelled',cancelled_at=now(),updated_at=now() WHERE id=${reservation.id} RETURNING *`;
@@ -31,7 +31,7 @@ export async function cancelManagedReservation(code, manageToken) {
     await tx`
       INSERT INTO audit_logs (restaurant_id,actor_type,action,entity_type,entity_id)
       VALUES (${reservation.restaurant_id},'guest','reservation.cancelled','reservation',${reservation.id})`;
-    return { reservation: updated };
+    return { reservation: updated, changed: true };
   });
 }
 
@@ -90,13 +90,45 @@ export async function modifyManagedReservation(code, manageToken, change) {
 export async function joinWaitlist(guest) {
   const sql = db();
   const context = await loadContext(sql);
-  const customer = await sql.begin(tx => upsertCustomer(tx, context, guest));
-  const [entry] = await sql`
-    INSERT INTO waitlist_entries (location_id,customer_id,guest_name,guest_phone,guest_email,party_size,requested_date,earliest_time,latest_time,note)
-    VALUES (${context.location_id},${customer.id},${guest.name},${guest.phone},${guest.email},${guest.partySize},${guest.date},${guest.earliestTime},${guest.latestTime},${guest.note || null})
-    RETURNING id::text,status,created_at`;
-  await sql`
-    INSERT INTO audit_logs (restaurant_id,actor_type,action,entity_type,entity_id)
-    VALUES (${context.restaurant_id},'guest','waitlist.joined','waitlist',${entry.id})`;
-  return entry;
+  if (guest.partySize < context.min_party_size || guest.partySize > context.max_online_party_size) {
+    throw Object.assign(new Error('Sällskapets storlek kan inte läggas på väntelistan online.'), { status:409, code:'party_size' });
+  }
+
+  return sql.begin(async tx => {
+    const opening = await getOpening(tx, context, guest.date);
+    if (!opening || opening.closed || !opening.opens_at || !opening.closes_at) {
+      throw Object.assign(new Error('Restaurangen är stängd den dagen.'), { status:409, code:'closed' });
+    }
+    if (guest.latestTime < guest.earliestTime) {
+      throw Object.assign(new Error('Senaste önskade tid måste vara efter den tidigaste.'), { status:400, code:'waitlist_window' });
+    }
+
+    const earliestAt = new Date(await localDateTime(tx, guest.date, guest.earliestTime, context.timezone, 0));
+    const latestAt = new Date(await localDateTime(tx, guest.date, guest.latestTime, context.timezone, 0));
+    const latestSittingEnds = new Date(latestAt.getTime() + context.default_duration_minutes * 60000);
+    const opensAt = new Date(opening.opens_ts);
+    const closesAt = new Date(opening.closes_ts);
+    const [nowRow] = await tx`SELECT now() AS now_ts`;
+    const now = new Date(nowRow.now_ts);
+
+    if (earliestAt < opensAt || latestSittingEnds > closesAt) {
+      throw Object.assign(new Error('Väntelistans tidsintervall ligger utanför bokningsbara öppettider.'), { status:409, code:'outside_hours' });
+    }
+    if (latestAt <= now) {
+      throw Object.assign(new Error('Väntelistans tidsintervall har redan passerat.'), { status:409, code:'past_window' });
+    }
+    if (earliestAt.getTime() > now.getTime() + context.max_advance_days * 86400000) {
+      throw Object.assign(new Error('Datumet ligger för långt fram.'), { status:409, code:'advance_limit' });
+    }
+
+    const customer = await upsertCustomer(tx, context, guest);
+    const [entry] = await tx`
+      INSERT INTO waitlist_entries (location_id,customer_id,guest_name,guest_phone,guest_email,party_size,requested_date,earliest_time,latest_time,note)
+      VALUES (${context.location_id},${customer.id},${guest.name},${guest.phone},${guest.email},${guest.partySize},${guest.date},${guest.earliestTime},${guest.latestTime},${guest.note || null})
+      RETURNING id::text,status,created_at`;
+    await tx`
+      INSERT INTO audit_logs (restaurant_id,actor_type,action,entity_type,entity_id)
+      VALUES (${context.restaurant_id},'guest','waitlist.joined','waitlist',${entry.id})`;
+    return entry;
+  });
 }

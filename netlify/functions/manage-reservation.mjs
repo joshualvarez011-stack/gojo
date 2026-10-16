@@ -16,8 +16,10 @@ export default async (req) => {
     }
     if (body.action === 'cancel') {
       const result = await cancelManagedReservation(code,token);
-      await sendReservationEmail({reservationId:result.reservation.id,eventType:'booking_cancelled',manageToken:token,baseUrl:new URL(req.url).origin});
-      return json({ ok:true,reservation:{ confirmationCode:result.reservation.confirmation_code,status:result.reservation.status } });
+      if (result.changed) {
+        await sendReservationEmail({reservationId:result.reservation.id,eventType:'booking_cancelled',manageToken:token,baseUrl:new URL(req.url).origin});
+      }
+      return json({ ok:true,reservation:{ confirmationCode:result.reservation.confirmation_code,status:result.reservation.status },changed:result.changed });
     }
     if (body.action === 'reschedule') {
       const context=await loadContext(db());

@@ -10,7 +10,7 @@ export default async (req) => {
     if (body.privacyAccepted !== true) throw Object.assign(new Error('Godkänn integritetsinformationen.'),{status:400,code:'privacy_required'});
     const guest = {
       name:cleanText(body.name,100,true), phone:normalizePhone(body.phone), email:normalizeEmail(body.email,false),
-      partySize:validateParty(body.partySize,context.min_party_size,30), date:validateDate(body.date),
+      partySize:validateParty(body.partySize,context.min_party_size,context.max_online_party_size), date:validateDate(body.date),
       earliestTime:validateTime(body.earliestTime), latestTime:validateTime(body.latestTime), note:cleanText(body.note,500,false)
     };
     const entry = await joinWaitlist(guest);
