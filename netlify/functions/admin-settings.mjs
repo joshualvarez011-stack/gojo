@@ -1,6 +1,6 @@
 import { db } from './_lib/db.mjs';
 import { loadContext } from './_lib/booking-service.mjs';
-import { requireAdmin } from './_lib/auth.mjs';
+import { requireAdmin, requireSameOrigin } from './_lib/auth.mjs';
 import { readJson, json, safeError } from './_lib/http.mjs';
 import { cleanText, validateTime } from './_lib/validation.mjs';
 
@@ -16,6 +16,7 @@ export default async(req)=>{
       const tables=await sql`SELECT id::text,code,label,min_capacity,max_capacity,x,y,width,height,shape,active,is_development_default FROM dining_tables WHERE location_id=${context.location_id} ORDER BY code`;
       return json({ok:true,rules,hours,tables});
     }
+    requireSameOrigin(req);
     const body=await readJson(req);
     if(body.action==='rules'){
       const r=body.rules||{};

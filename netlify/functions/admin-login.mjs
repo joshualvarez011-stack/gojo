@@ -1,4 +1,4 @@
-import { verifyPassword, createSession, sessionCookie, clearSessionCookie, requireAdmin } from './_lib/auth.mjs';
+import { verifyPassword, createSession, sessionCookie, clearSessionCookie, requireAdmin, requireSameOrigin } from './_lib/auth.mjs';
 import { readJson, json, safeError } from './_lib/http.mjs';
 
 export default async (req) => {
@@ -7,6 +7,7 @@ export default async (req) => {
       const session = requireAdmin(req);
       return json({ok:true,session:{role:session.role}});
     }
+    requireSameOrigin(req);
     const body = await readJson(req,5000);
     if (body.action === 'logout') return json({ok:true},200,{'set-cookie':clearSessionCookie()});
     if (!process.env.GOJO_ADMIN_PASSWORD_HASH) throw Object.assign(new Error('Admininloggning är inte konfigurerad ännu.'),{status:503,code:'admin_not_configured'});

@@ -1,6 +1,6 @@
 import { db } from './_lib/db.mjs';
 import { loadContext, createReservation } from './_lib/booking-service.mjs';
-import { requireAdmin } from './_lib/auth.mjs';
+import { requireAdmin, requireSameOrigin } from './_lib/auth.mjs';
 import { validateReservationInput, cleanText } from './_lib/validation.mjs';
 import { json, readJson, safeError } from './_lib/http.mjs';
 
@@ -8,7 +8,7 @@ const STATUSES=new Set(['confirmed','arrived','seated','completed','cancelled','
 
 export default async(req)=>{
   try{
-    requireAdmin(req); const body=await readJson(req); const sql=db(); const context=await loadContext(sql);
+    requireAdmin(req); requireSameOrigin(req); const body=await readJson(req); const sql=db(); const context=await loadContext(sql);
     if(body.action==='create'){
       const guest=validateReservationInput({...body.reservation,privacyAccepted:true},context);
       const result=await createReservation(guest,'admin'); return json({ok:true,...result},201);

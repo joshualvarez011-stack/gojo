@@ -54,3 +54,11 @@ export function requireAdmin(req) {
   if (!payload || payload.exp < Date.now()) throw Object.assign(new Error('Sessionen har gått ut.'), { status: 401, code: 'unauthorized' });
   return payload;
 }
+
+export function requireSameOrigin(req) {
+  const origin = req.headers.get('origin');
+  const expected = new URL(req.url).origin;
+  if (!origin || origin !== expected) {
+    throw Object.assign(new Error('Ogiltigt request origin.'), { status: 403, code: 'invalid_origin' });
+  }
+}
