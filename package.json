@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "netlify dev",
     "test": "node --test tests/*.test.mjs",
-    "hash-admin-password": "node scripts/hash-admin-password.mjs"
+    "hash-admin-password": "node scripts/hash-admin-password.mjs",
+    "build": "node scripts/build-static.mjs"
   },
   "dependencies": {
     "@netlify/database": "^2.0.1",
