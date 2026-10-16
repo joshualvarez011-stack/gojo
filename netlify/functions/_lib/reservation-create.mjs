@@ -56,7 +56,7 @@ export async function createReservation(guest, source = 'web') {
     const bufferedStart = new Date(start.getTime() - context.buffer_before_minutes * 60000);
     const bufferedEnd = new Date(endsAt.getTime() + context.buffer_after_minutes * 60000);
     if (await locationBlocked(tx, context, bufferedStart, bufferedEnd)) throw Object.assign(new Error('Tiden är blockerad.'), { status: 409, code: 'blocked' });
-    if (!(await capacityAllows(tx, context, guest.date, startsAt, guest.partySize))) throw Object.assign(new Error('Kapaciteten är full för den tiden.'), { status: 409, code: 'capacity_full' });
+    if (!(await capacityAllows(tx, context, guest.date, startsAt, endsAt, guest.partySize))) throw Object.assign(new Error('Kapaciteten är full för den tiden.'), { status: 409, code: 'capacity_full' });
     const busy = await busyFor(tx, context, bufferedStart, bufferedEnd);
     const assignment = chooseBestTableSet({ tables, combinations, busyTableIds: busy, partySize: guest.partySize });
     if (!assignment) throw Object.assign(new Error('Tiden blev precis fullbokad. Välj en annan tid.'), { status: 409, code: 'slot_taken' });
@@ -86,7 +86,6 @@ export async function createReservation(guest, source = 'web') {
       throw error;
     }
 
-    await tx`UPDATE customers SET visit_count = visit_count + 1, last_seen_at=now() WHERE id=${customer.id}`;
     await tx`
       INSERT INTO notification_events (restaurant_id,reservation_id,event_type,channel,recipient,payload)
       VALUES (${context.restaurant_id},${reservation.id},'booking_created','mock',${guest.email || guest.phone},${JSON.stringify({ confirmationCode: code })}::jsonb)`;

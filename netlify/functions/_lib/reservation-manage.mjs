@@ -64,7 +64,7 @@ export async function modifyManagedReservation(code, manageToken, change) {
     const bufferedStart=new Date(start.getTime()-context.buffer_before_minutes*60000);
     const bufferedEnd=new Date(endsAt.getTime()+context.buffer_after_minutes*60000);
     if(await locationBlocked(tx,context,bufferedStart,bufferedEnd)) throw Object.assign(new Error('Tiden är blockerad.'),{status:409,code:'blocked'});
-    if(!(await capacityAllows(tx,context,change.date,startsAt,change.partySize))) throw Object.assign(new Error('Kapaciteten är full för tiden.'),{status:409,code:'capacity_full'});
+    if(!(await capacityAllows(tx,context,change.date,startsAt,endsAt,change.partySize,reservation.id))) throw Object.assign(new Error('Kapaciteten är full för tiden.'),{status:409,code:'capacity_full'});
 
     await tx`DELETE FROM reservation_table_assignments WHERE reservation_id=${reservation.id}`;
     const {tables,combinations}=await loadTables(tx,context);

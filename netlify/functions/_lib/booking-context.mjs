@@ -96,11 +96,21 @@ export async function locationBlocked(sql, context, startsAt, endsAt) {
   return Boolean(row?.blocked);
 }
 
-export async function capacityAllows(sql, context, date, startsAt, partySize) {
+export async function capacityAllows(sql, context, date, startsAt, endsAt, partySize, excludeReservationId = null) {
   const rules = await sql`
     SELECT * FROM capacity_rules
      WHERE location_id = ${context.location_id} AND active
-       AND (weekday IS NULL OR weekday = EXTRACT(ISODOW FROM ${date}::date)::int)`;
+       AND (weekday IS NULL OR weekday = EXTRACT(ISODOW FROM ${date}::date)::int)
+       AND (
+         starts_at IS NULL OR ends_at IS NULL OR
+         CASE WHEN ends_at > starts_at THEN
+           ((${startsAt}::timestamptz AT TIME ZONE ${context.timezone})::time >= starts_at
+            AND (${startsAt}::timestamptz AT TIME ZONE ${context.timezone})::time < ends_at)
+         ELSE
+           ((${startsAt}::timestamptz AT TIME ZONE ${context.timezone})::time >= starts_at
+            OR (${startsAt}::timestamptz AT TIME ZONE ${context.timezone})::time < ends_at)
+         END
+       )`;
   if (!rules.length) return true;
   for (const rule of rules) {
     if (rule.max_arriving_covers) {
@@ -109,9 +119,20 @@ export async function capacityAllows(sql, context, date, startsAt, partySize) {
           FROM reservations
          WHERE location_id = ${context.location_id}
            AND status IN ('pending','confirmed','arrived','seated')
+           AND (${excludeReservationId}::uuid IS NULL OR id <> ${excludeReservationId}::uuid)
            AND starts_at >= ${startsAt}::timestamptz - (${rule.window_minutes}::int * interval '1 minute') / 2
            AND starts_at <  ${startsAt}::timestamptz + (${rule.window_minutes}::int * interval '1 minute') / 2`;
       if (Number(count.covers) + partySize > Number(rule.max_arriving_covers)) return false;
+    }
+    if (rule.max_active_covers) {
+      const [count] = await sql`
+        SELECT COALESCE(sum(party_size),0)::int AS covers
+          FROM reservations
+         WHERE location_id = ${context.location_id}
+           AND status IN ('pending','confirmed','arrived','seated')
+           AND (${excludeReservationId}::uuid IS NULL OR id <> ${excludeReservationId}::uuid)
+           AND tstzrange(starts_at, ends_at, '[)') && tstzrange(${startsAt}::timestamptz, ${endsAt}::timestamptz, '[)')`;
+      if (Number(count.covers) + partySize > Number(rule.max_active_covers)) return false;
     }
   }
   return true;
