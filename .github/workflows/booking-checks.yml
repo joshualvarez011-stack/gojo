@@ -13,6 +13,22 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/gojo_test
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gojo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d gojo_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,7 +41,10 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Unit tests
+      - name: Apply migration to real Postgres
+        run: node scripts/apply-test-migration.mjs
+
+      - name: Unit + database integration tests
         run: npm test
 
       - name: Build public site
