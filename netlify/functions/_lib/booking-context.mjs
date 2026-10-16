@@ -25,16 +25,40 @@ export async function loadContext(sql = db()) {
 export async function getPublicRestaurantInfo() {
   const sql = db();
   const context = await loadContext(sql);
-  const hours = await sql`
-    SELECT weekday, opens_at::text, closes_at::text, closed, note, source
-      FROM opening_hours WHERE location_id = ${context.location_id}
-     ORDER BY weekday`;
-  return { ...context, openingHours: hours };
+  const [hours, specialOpeningHours] = await Promise.all([
+    sql`
+      SELECT weekday, opens_at::text, closes_at::text, closed, note, source
+        FROM opening_hours
+       WHERE location_id = ${context.location_id}
+         AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
+       ORDER BY weekday, valid_from DESC NULLS LAST`,
+    sql`
+      SELECT service_date::text, opens_at::text, closes_at::text, closed, note
+        FROM special_opening_hours
+       WHERE location_id = ${context.location_id}
+         AND service_date >= CURRENT_DATE
+         AND service_date <= CURRENT_DATE + 180
+       ORDER BY service_date`
+  ]);
+  return { ...context, openingHours: hours, specialOpeningHours };
 }
 
 export async function getOpening(sql, context, date) {
+  const [special] = await sql`
+    SELECT EXTRACT(ISODOW FROM soh.service_date)::int AS weekday,
+           soh.opens_at::text, soh.closes_at::text, soh.closed, soh.note, 'special'::text AS source,
+           CASE WHEN soh.closed THEN NULL
+                ELSE ((soh.service_date + soh.opens_at) AT TIME ZONE ${context.timezone}) END AS opens_ts,
+           CASE WHEN soh.closed THEN NULL
+                ELSE (((CASE WHEN soh.closes_at <= soh.opens_at THEN soh.service_date + 1 ELSE soh.service_date END + soh.closes_at) AT TIME ZONE ${context.timezone})) END AS closes_ts
+      FROM special_opening_hours soh
+     WHERE soh.location_id = ${context.location_id}
+       AND soh.service_date = ${date}::date
+     LIMIT 1`;
+  if (special) return special;
+
   const [row] = await sql`
-    SELECT oh.weekday, oh.opens_at::text, oh.closes_at::text, oh.closed,
+    SELECT oh.weekday, oh.opens_at::text, oh.closes_at::text, oh.closed, oh.note, oh.source,
            (((${date}::date + oh.opens_at) AT TIME ZONE ${context.timezone})) AS opens_ts,
            (((CASE WHEN oh.closes_at <= oh.opens_at THEN ${date}::date + 1 ELSE ${date}::date END + oh.closes_at) AT TIME ZONE ${context.timezone})) AS closes_ts
       FROM opening_hours oh
