@@ -59,6 +59,7 @@ export async function modifyManagedReservation(code, manageToken, change) {
     const start=new Date(startsAt); const endsAt=new Date(start.getTime()+context.default_duration_minutes*60000);
     const [nowRow]=await tx`SELECT now() AS now_ts`; const now=new Date(nowRow.now_ts);
     if(start.getTime()<now.getTime()+context.min_lead_minutes*60000) throw Object.assign(new Error('Tiden ligger för nära inpå.'),{status:409,code:'lead_time'});
+    if(start.getTime()>now.getTime()+context.max_advance_days*86400000) throw Object.assign(new Error('Datumet ligger för långt fram.'),{status:409,code:'advance_limit'});
     if(start<new Date(opening.opens_ts)||endsAt>new Date(opening.closes_ts)) throw Object.assign(new Error('Tiden ligger utanför bokningsbara öppettider.'),{status:409,code:'outside_hours'});
 
     const bufferedStart=new Date(start.getTime()-context.buffer_before_minutes*60000);
