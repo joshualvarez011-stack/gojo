@@ -15,7 +15,7 @@ after(async () => {
   if (sql) await sql.end({ timeout: 2 });
 });
 
-test('migration seeds GOJO core data', { skip: skipDatabase }, async () => {
+test('migrations seed GOJO core data and apply later schema changes', { skip: skipDatabase }, async () => {
   const [restaurant] = await sql`
     select r.slug, l.slug as location_slug, br.slot_interval_minutes
     from restaurants r
@@ -34,6 +34,16 @@ test('migration seeds GOJO core data', { skip: skipDatabase }, async () => {
     where location_id = '22222222-2222-4222-8222-222222222222'
   `;
   assert.equal(count, 7);
+
+  const columns = await sql`
+    select column_name
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'reservations'
+      and column_name in ('visit_count_recorded', 'no_show_count_recorded')
+    order by column_name
+  `;
+  assert.deepEqual(columns.map(row => row.column_name), ['no_show_count_recorded', 'visit_count_recorded']);
 });
 
 test('database rejects overlapping active assignments on the same table', { skip: skipDatabase }, async () => {
