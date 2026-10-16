@@ -6,7 +6,9 @@ Lägg hela projektroten i `joshualvarez011-stack/gojo`.
 Behåll `main` som stabil bas. Skapa exempelvis `booking-system-v1` för bokningssystemet och låt Netlify skapa Deploy Preview från den branchen/PR:n.
 
 ## 2. Koppla befintlig Netlify-site
-När GitHub-repot är komplett kan `gojo-restaurang.netlify.app` kopplas till repot under Netlifys Continuous deployment-inställningar. Gör inte kopplingen medan assets/filer saknas i repot.
+`gojo-restaurang.netlify.app` kopplades till `joshualvarez011-stack/gojo` den 16 oktober 2026 med `main` som production branch.
+
+Efter kopplingen triggas Deploy Preview från nya commits på `booking-system-v1`/PR #1. Production ska fortsatt bygga från `main` tills preview + database-tests är godkända.
 
 ## 3. Public build
 `npm run build` skapar `dist/`, och `netlify.toml` publicerar endast den katalogen. Kontrollera i deploy-loggen att backendkällor/migrations inte hamnar som statiska publika filer.
