@@ -1,0 +1,17 @@
+{
+  "name": "gojo-booking",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "test": "node --test tests/*.test.mjs",
+    "test:db": "node --test tests/database-integration.test.mjs",
+    "hash-admin-password": "node scripts/hash-admin-password.mjs",
+    "build": "node scripts/build-static.mjs"
+  },
+  "dependencies": {
+    "@netlify/database": "^2.0.1",
+    "postgres": "^3.4.7"
+  }
+}
