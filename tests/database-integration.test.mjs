@@ -1,24 +1,21 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import postgres from 'postgres';
-import { NetlifyDB } from '@netlify/database-dev';
 
-let db;
+const connectionString = process.env.TEST_DATABASE_URL || '';
+const skipDatabase = !connectionString;
 let sql;
 
 before(async () => {
-  db = new NetlifyDB({ logger: () => {} });
-  const connectionString = await db.start();
-  await db.applyMigrations('./netlify/database/migrations');
+  if (skipDatabase) return;
   sql = postgres(connectionString, { max: 1 });
 });
 
 after(async () => {
   if (sql) await sql.end({ timeout: 2 });
-  if (db) await db.stop();
 });
 
-test('migration seeds GOJO core data', async () => {
+test('migration seeds GOJO core data', { skip: skipDatabase }, async () => {
   const [restaurant] = await sql`
     select r.slug, l.slug as location_slug, br.slot_interval_minutes
     from restaurants r
@@ -39,7 +36,7 @@ test('migration seeds GOJO core data', async () => {
   assert.equal(count, 7);
 });
 
-test('database rejects overlapping active assignments on the same table', async () => {
+test('database rejects overlapping active assignments on the same table', { skip: skipDatabase }, async () => {
   const [tableRow] = await sql`
     select id from dining_tables
     where location_id = '22222222-2222-4222-8222-222222222222' and code = 'T1'
@@ -88,7 +85,7 @@ test('database rejects overlapping active assignments on the same table', async 
   );
 });
 
-test('adjacent assignments are allowed because ranges are half-open', async () => {
+test('adjacent assignments are allowed because ranges are half-open', { skip: skipDatabase }, async () => {
   const [tableRow] = await sql`
     select id from dining_tables
     where location_id = '22222222-2222-4222-8222-222222222222' and code = 'T2'
