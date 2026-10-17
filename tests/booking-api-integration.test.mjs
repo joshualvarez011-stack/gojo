@@ -60,6 +60,7 @@ test('guest API: availability, concurrent booking, cancellation and rescheduling
   const loser = attempts.find(attempt => attempt.status === 409).body;
   assert.equal(loser.error, 'slot_taken');
   assert.ok(winner.manageToken);
+  assert.match(winner.reservation.confirmationCode, /^GJ-\d{6}$/);
   const taken = await available(wednesday, 8);
   assert.ok(!taken.body.slots.some(slot => slot.time === '18:00'));
 

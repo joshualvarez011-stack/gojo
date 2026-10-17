@@ -9,8 +9,10 @@ test('management hero has its own typography spacing',()=>{
   assert.match(css,/\.manage-hero \.page-hero-content\{display:flex;flex-direction:column/);
   assert.match(css,/\.manage-hero \.page-hero-content h1\{[^}]*line-height:1\.08/);
 });
-test('deep-linked booking opens without exposing private token in the default form',()=>{
-  assert.match(page,/name="token" type="password"/);
-  assert.match(page,/id="manageSwitch"/);
-  assert.match(script,/if\(linkedReservation\)\{form\.hidden=true/);
+test('personal link loads directly without a manual code or token form',()=>{
+  assert.doesNotMatch(page, /name="token"/);
+  assert.doesNotMatch(page, /id="manageLookup"/);
+  assert.match(page, /id="missingLink"/);
+  assert.match(script, /hasPersonalLink/);
+  assert.match(script, /history\.replaceState/);
 });

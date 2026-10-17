@@ -9,3 +9,13 @@
 .manage-hero .page-hero-content p{margin:0;max-width:680px;line-height:1.35}
 .manage-switch{margin:0 0 18px}
 @media(max-width:650px){.manage-hero .page-hero-content{gap:18px}.manage-hero .page-hero-content h1{font-size:clamp(52px,14.4vw,92px);line-height:1.1}}
+
+/* Guest-friendly personal-link management (no token entry). */
+.manage-help{background:#f6ede1;border:1px solid #dacbb9;border-radius:16px;padding:clamp(18px,3vw,30px);display:grid;gap:16px;max-width:760px}
+.manage-help[hidden]{display:none!important}
+.manage-help h4{font-family:var(--serif);font-size:clamp(28px,3vw,38px);font-weight:500;line-height:1.15}
+.manage-help p{font-size:14px;line-height:1.7;color:#655a50;max-width:650px}
+.manage-help .booking-primary{justify-self:start}
+.manage-link-help{font-size:12px;color:#74685d;max-width:590px;line-height:1.6;margin-top:16px;text-align:center}
+.booking-success #copyLinkMessage{margin-top:9px}
+@media(max-width:650px){.manage-help .booking-primary{justify-self:stretch}.booking-success-actions{width:100%}.booking-success-actions>a,.booking-success-actions>button{width:100%}}

@@ -1,10 +1,10 @@
 import { randomBytes, createHash } from 'node:crypto';
+import { confirmationCode } from './confirmation-code.mjs';
 import { db } from './db.mjs';
 import { chooseBestTableSet } from './booking-engine.mjs';
 import { loadContext, getOpening, loadTables, localDateTime, busyFor, locationBlocked, capacityAllows } from './booking-context.mjs';
 
 function token(bytes = 24) { return randomBytes(bytes).toString('base64url'); }
-function confirmationCode() { return `GJ-${randomBytes(4).toString('hex').toUpperCase()}`; }
 export function hashToken(token) { return createHash('sha256').update(token).digest('hex'); }
 
 export async function upsertCustomer(tx, context, guest) {
@@ -63,17 +63,22 @@ export async function createReservation(guest, source = 'web') {
 
     const customer = await upsertCustomer(tx, context, guest);
     const manageToken = token();
-    const code = confirmationCode();
-    let reservation;
+    let code, reservation;
     try {
-      [reservation] = await tx`
+      // Human-readable references are short; retry a collision without aborting the transaction.
+      for (let attempt = 0; attempt < 12; attempt++) {
+        code = confirmationCode();
+        [reservation] = await tx`
         INSERT INTO reservations (
           restaurant_id,location_id,customer_id,confirmation_code,manage_token_hash,guest_name,guest_phone,guest_email,
           party_size,starts_at,ends_at,status,source,guest_note,payment_mode
         ) VALUES (
           ${context.restaurant_id},${context.location_id},${customer.id},${code},${hashToken(manageToken)},${guest.name},${guest.phone},${guest.email},
           ${guest.partySize},${startsAt},${endsAt},'confirmed',${source},${guest.note || null},${context.payment_mode}
-        ) RETURNING *`;
+        ) ON CONFLICT (confirmation_code) DO NOTHING RETURNING *`;
+        if (reservation) break;
+      }
+      if (!reservation) throw Object.assign(new Error('Kunde inte skapa en unik bokningsreferens. Försök igen.'), { status:503, code:'code_generation_failed' });
       for (const tableId of assignment.tableIds) {
         await tx`
           INSERT INTO reservation_table_assignments (reservation_id,table_id,during,active)
