@@ -23,12 +23,25 @@ Sätt i Netlify Environment variables:
 - `RESTAURANT_SLUG=gojo`
 - `LOCATION_SLUG=stockholm`
 
-## 6. Email (valfritt under pilot)
-För riktiga confirmations via e-post:
-- `RESEND_API_KEY`
-- `GOJO_EMAIL_FROM`
+## 6. Automatiska bekräftelsemejl (Resend)
 
-Utan dessa skapas reservationen ändå och notification-event markeras som inte konfigurerat.
+Bokning, ombokning och avbokning skickar separata svenska HTML+textmejl. Bokningen förblir sparad även när mejltjänsten inte fungerar.
+
+1. Skapa ett konto på https://resend.com och lägg till en domän som restaurangen äger. Verifiera de DNS-poster Resend anger för SPF och DKIM.
+2. Skapa en sending-API-nyckel. Lägg enbart i Netlify Project configuration → Environment variables, Functions-scope:
+   - `RESEND_API_KEY` (hemlig)
+   - `GOJO_EMAIL_FROM` (t.ex. `GOJO <bokning@restaurangens-verifierade-domän.se>`)
+   - `GOJO_PUBLIC_BASE_URL` (valfri HTTPS-produktionsdomän om Netlify URL inte räcker)
+3. Sätt olika värden för **Production** och **Deploy Previews**. Ändrad variabel kräver en ny deploy.
+4. Utskick är blockerade utanför `CONTEXT=production` som standard. För kontrollerat test i Deploy Preview krävs även:
+   - `GOJO_ENABLE_PREVIEW_EMAILS=true`
+   - `GOJO_EMAIL_TEST_RECIPIENTS=din-testadress@example.com` (fler med kommatecken)
+   - `RESEND_API_KEY` och `GOJO_EMAIL_FROM` i Preview-context
+   - Netlifys `DEPLOY_PRIME_URL` används för den personliga previewlänken.
+5. Testa enbart med tillåten testadress: bokning → inkorg → hantera → ombokning → avbokning. Stäng sedan gärna preview-utskick.
+
+`accepted:true` betyder endast att Resend accepterade utskicket — inte att mejlet nått inkorgen. Verifierad domän, rättslig grund och godkänd hantering av personuppgifter krävs före skarp drift.
+
 
 ## 7. Testmatris i deploy preview
 - 1, 2, 4, 6 och 8 gäster.

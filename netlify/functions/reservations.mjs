@@ -11,9 +11,8 @@ export default async (req) => {
     const guest = validateReservationInput(body, context);
     if (!guest.privacyAccepted) throw Object.assign(new Error('Godkänn integritetsinformationen för att boka.'), { status:400, code:'privacy_required' });
     const result = await createReservation(guest,'web');
-    const origin=new URL(req.url).origin;
-    await sendReservationEmail({reservationId:result.reservation.id,eventType:'booking_created',manageToken:result.manageToken,baseUrl:origin});
-    return json({ ok:true, ...result },201);
+    const email = await sendReservationEmail({reservationId:result.reservation.id,eventType:'booking_created',manageToken:result.manageToken});
+    return json({ ok:true, ...result, email },201);
   } catch (error) { return safeError(error); }
 };
 export const config = { path:'/api/reservations', method:'POST', rateLimit:{ windowLimit:8, windowSize:60, aggregateBy:['ip','domain'] } };

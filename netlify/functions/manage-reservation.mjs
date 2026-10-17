@@ -17,7 +17,7 @@ export default async (req) => {
     if (body.action === 'cancel') {
       const result = await cancelManagedReservation(code,token);
       if (result.changed) {
-        await sendReservationEmail({reservationId:result.reservation.id,eventType:'booking_cancelled',manageToken:token,baseUrl:new URL(req.url).origin});
+        await sendReservationEmail({reservationId:result.reservation.id,eventType:'booking_cancelled',manageToken:token});
       }
       return json({ ok:true,reservation:{ confirmationCode:result.reservation.confirmation_code,status:result.reservation.status },changed:result.changed });
     }
@@ -25,7 +25,7 @@ export default async (req) => {
       const context=await loadContext(db());
       const change={date:validateDate(body.date),time:validateTime(body.time),partySize:validateParty(body.partySize,context.min_party_size,context.max_online_party_size)};
       const result=await modifyManagedReservation(code,token,change);
-      await sendReservationEmail({reservationId:result.reservation.id,eventType:'booking_modified',manageToken:token,baseUrl:new URL(req.url).origin});
+      await sendReservationEmail({reservationId:result.reservation.id,eventType:'booking_modified',manageToken:token});
       return json({ok:true,reservation:{confirmationCode:result.reservation.confirmation_code,status:result.reservation.status,startsAt:result.reservation.starts_at,partySize:result.reservation.party_size}});
     }
     return json({ ok:false,error:'unsupported_action' },400);
