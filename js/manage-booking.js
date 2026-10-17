@@ -1,4 +1,5 @@
 const form=document.getElementById('manageLookup'),result=document.getElementById('manageResult'),error=document.getElementById('manageError');
+if(/^deploy-preview-\d+--/.test(location.hostname)){const notice=document.getElementById('managePreviewBanner');if(notice)notice.hidden=false;}
 const searchParams=new URLSearchParams(location.search);const hashParams=new URLSearchParams(location.hash.replace(/^#/,'') );const params=hashParams.size?hashParams:searchParams;const demo=params.get('demo')==='1'||searchParams.get('demo')==='1'||location.protocol==='file:';
 for(const n of ['code','token'])if(params.get(n))form.elements[n].value=params.get(n);
 if(params.get('code')&&params.get('token')){ history.replaceState(null,'',location.pathname+(demo?'?demo=1':'')); load(); }
