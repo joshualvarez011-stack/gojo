@@ -1,0 +1,41 @@
+const result=document.getElementById('manageResult'),error=document.getElementById('manageError');
+const missingLink=document.getElementById('missingLink');
+if(/^deploy-preview-\d+--/.test(location.hostname)){const notice=document.getElementById('managePreviewBanner');if(notice)notice.hidden=false;}
+const searchParams=new URLSearchParams(location.search);
+const hashParams=new URLSearchParams(location.hash.replace(/^#/,''));
+const params=hashParams.size?hashParams:searchParams;
+const demo=params.get('demo')==='1'||searchParams.get('demo')==='1'||location.protocol==='file:';
+const code=(params.get('code')||'').trim().toUpperCase();
+const token=(params.get('token')||'').trim();
+const hasPersonalLink=Boolean(code&&token);
+missingLink.hidden=hasPersonalLink;
+if(hasPersonalLink){
+  history.replaceState(null,'',location.pathname+(demo?'?demo=1':''));
+  load();
+}
+async function load(){
+  error.textContent='';result.hidden=true;
+  try{
+    let reservation;
+    if(demo){
+      const all=JSON.parse(localStorage.getItem('gojo-demo-reservations')||'[]');
+      const found=all.find(x=>x.confirmationCode===code&&x.manageToken===token);
+      if(!found)throw new Error('Demobokningen hittades inte.');
+      reservation={confirmation_code:code,guest_name:found.name,party_size:found.partySize,starts_at:`${found.date}T${found.time}:00`,status:found.status||'confirmed',timezone:'Europe/Stockholm'};
+    }else{
+      const r=await fetch('/api/reservation/manage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'lookup',code,token})});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.message||'Bokningen hittades inte.');
+      reservation=d.reservation;
+    }
+    missingLink.hidden=true;
+    render(reservation,code,token);
+  }catch(e){missingLink.hidden=false;error.textContent=e.message||'Kunde inte öppna bokningen.';}
+}
+function render(r,code,token){const when=new Intl.DateTimeFormat('sv-SE',{dateStyle:'full',timeStyle:'short',timeZone:r.timezone||'Europe/Stockholm'}).format(new Date(r.starts_at));result.hidden=false;result.innerHTML=`<div class="manage-card"><span class="eyebrow">${escapeHtml(r.status)}</span><h4>${escapeHtml(r.guest_name)}</h4><dl><div><dt>Tid</dt><dd>${escapeHtml(when)}</dd></div><div><dt>Gäster</dt><dd>${Number(r.party_size)}</dd></div><div><dt>Kod</dt><dd>${escapeHtml(r.confirmation_code)}</dd></div></dl>${r.status==='cancelled'?'<p class="manage-cancelled">Bokningen är avbokad.</p>':`<div class="manage-buttons"><button class="booking-secondary" id="rescheduleReservation" type="button">Ändra tid</button><button class="booking-secondary danger" id="cancelReservation" type="button">Avboka bokning</button></div><div class="reschedule-box" id="rescheduleBox" hidden><div class="booking-details-grid"><label>Datum<input id="newDate" type="date"></label><label>Gäster<input id="newParty" type="number" min="1" max="8" value="${Number(r.party_size)}"></label></div><button class="booking-secondary" id="loadNewTimes" type="button">Visa tider</button><div class="time-grid compact" id="newTimes"></div><button class="booking-primary" id="saveNewTime" type="button" disabled>Spara ny tid →</button></div>`}</div>`;const b=document.getElementById('cancelReservation');if(b)b.onclick=()=>cancel(code,token);const edit=document.getElementById('rescheduleReservation');if(edit)edit.onclick=()=>openReschedule(r,code,token);}
+async function cancel(code,token){if(!confirm('Vill du avboka bokningen?'))return;try{if(demo){const all=JSON.parse(localStorage.getItem('gojo-demo-reservations')||'[]');const x=all.find(x=>x.confirmationCode===code&&x.manageToken===token);if(x)x.status='cancelled';localStorage.setItem('gojo-demo-reservations',JSON.stringify(all));}else{const r=await fetch('/api/reservation/manage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'cancel',code,token})});const d=await r.json();if(!r.ok)throw new Error(d.message||'Kunde inte avboka.');}await load();}catch(e){error.textContent=e.message;}}
+let selectedNewTime=null;
+function openReschedule(r,code,token){const box=document.getElementById('rescheduleBox');box.hidden=!box.hidden;if(box.hidden)return;const d=new Intl.DateTimeFormat('sv-SE',{timeZone:r.timezone||'Europe/Stockholm',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(r.starts_at));const input=document.getElementById('newDate');input.value=d;input.min=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Stockholm',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());document.getElementById('loadNewTimes').onclick=()=>loadNewTimes(code,token);document.getElementById('saveNewTime').onclick=()=>saveNewTime(code,token);}
+async function loadNewTimes(){const date=document.getElementById('newDate').value,party=Number(document.getElementById('newParty').value),grid=document.getElementById('newTimes'),save=document.getElementById('saveNewTime');selectedNewTime=null;save.disabled=true;grid.innerHTML='Kontrollerar…';try{let slots;if(demo){const day=new Date(`${date}T12:00:00Z`).getUTCDay();const h={3:['16:00',23],4:['16:00',23],5:['16:00',24],6:['13:00',24],0:['13:00',23]}[day];slots=[];if(h){const a=Number(h[0].split(':')[0])*60,z=h[1]*60;for(let m=a;m+120<=z;m+=30)slots.push({time:`${String(Math.floor(m/60)%24).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`});}}else{const r=await fetch('/api/availability',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({date,partySize:party,code,token})}),d=await r.json();if(!r.ok)throw new Error(d.message||'Kunde inte kontrollera tider.');slots=d.slots||[];}grid.innerHTML='';if(!slots.length){grid.textContent='Inga lediga tider.';return;}slots.forEach(s=>{const b=document.createElement('button');b.type='button';b.className='time-choice';b.textContent=s.time;b.onclick=()=>{selectedNewTime=s.time;[...grid.children].forEach(x=>x.classList.toggle('selected',x===b));save.disabled=false;};grid.append(b);});}catch(e){grid.textContent=e.message;}}
+async function saveNewTime(code,token){if(!selectedNewTime)return;const date=document.getElementById('newDate').value,partySize=Number(document.getElementById('newParty').value);try{if(demo){const all=JSON.parse(localStorage.getItem('gojo-demo-reservations')||'[]');const x=all.find(x=>x.confirmationCode===code&&x.manageToken===token);if(x){x.date=date;x.time=selectedNewTime;x.partySize=partySize;}localStorage.setItem('gojo-demo-reservations',JSON.stringify(all));}else{const r=await fetch('/api/reservation/manage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'reschedule',code,token,date,time:selectedNewTime,partySize})});const d=await r.json();if(!r.ok)throw new Error(d.message||'Kunde inte ändra bokningen.');}await load();}catch(e){error.textContent=e.message;}}
+function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
