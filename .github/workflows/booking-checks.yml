@@ -45,6 +45,10 @@ jobs:
         run: node scripts/apply-test-migration.mjs
 
       - name: Unit + database integration tests
+        env:
+          NODE_ENV: test
+          RESEND_API_KEY: ''
+          GOJO_EMAIL_FROM: ''
         run: npm test
 
       - name: Build public site
