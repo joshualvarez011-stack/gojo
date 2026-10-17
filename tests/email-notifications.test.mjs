@@ -11,28 +11,31 @@ const sample = {
   restaurant_email:'info@gojorestaurang.se'
 };
 test('production sends only with verified-provider configuration',()=>{
-  assert.deepEqual(emailPermission({CONTEXT:'production'},sample.guest_email),{allowed:false,reason:'not_configured'});
-  assert.deepEqual(emailPermission({...creds,CONTEXT:'production'},sample.guest_email),{allowed:true});
+  assert.deepEqual(emailPermission({GOJO_EMAIL_MODE:'production'},sample.guest_email),{allowed:false,reason:'not_configured'});
+  assert.deepEqual(emailPermission({...creds,GOJO_EMAIL_MODE:'production'},sample.guest_email),{allowed:true});
 });
 test('preview and unknown contexts fail closed even when secrets exist',()=>{
-  assert.equal(emailPermission({...creds,CONTEXT:'deploy-preview'},sample.guest_email).allowed,false);
-  assert.equal(emailPermission({...creds,CONTEXT:'dev'},sample.guest_email).allowed,false);
+  assert.equal(emailPermission({...creds,GOJO_EMAIL_MODE:'preview'},sample.guest_email).allowed,false);
+  assert.equal(emailPermission({...creds,GOJO_EMAIL_MODE:'dev'},sample.guest_email).allowed,false);
   assert.equal(emailPermission({...creds},sample.guest_email).allowed,false);
 });
 test('preview opt-in is recipient-specific and case-insensitive',()=>{
-  const env={...creds,CONTEXT:'deploy-preview',GOJO_ENABLE_PREVIEW_EMAILS:'true',GOJO_EMAIL_TEST_RECIPIENTS:'allowed@example.test, SECOND@example.test'};
+  const env={...creds,GOJO_EMAIL_MODE:'preview',GOJO_ENABLE_PREVIEW_EMAILS:'true',GOJO_EMAIL_TEST_RECIPIENTS:'allowed@example.test, SECOND@example.test'};
   assert.equal(emailPermission(env,'CUSTOMER@example.test').allowed,false);
   assert.equal(emailPermission(env,'second@example.test').allowed,true);
   assert.equal(emailPermission({...env,GOJO_ENABLE_PREVIEW_EMAILS:'false'},'allowed@example.test').allowed,false);
 });
 test('provider is never contacted without an email',()=>{
-  assert.equal(emailPermission({...creds,CONTEXT:'production'},'').reason,'no_email');
+  assert.equal(emailPermission({...creds,GOJO_EMAIL_MODE:'production'},'').reason,'no_email');
 });
 test('outbound management links use deployment-provided HTTPS URLs only',()=>{
-  assert.equal(emailBaseUrl({CONTEXT:'production',URL:'https://gojo-restaurang.netlify.app'}),'https://gojo-restaurang.netlify.app');
-  assert.equal(emailBaseUrl({CONTEXT:'deploy-preview',DEPLOY_PRIME_URL:'https://deploy-preview-1--gojo-restaurang.netlify.app'}),'https://deploy-preview-1--gojo-restaurang.netlify.app');
-  assert.equal(emailBaseUrl({CONTEXT:'production',URL:'http://untrusted.example'}),null);
-  assert.equal(emailBaseUrl({CONTEXT:'dev',URL:'https://gojo-restaurang.netlify.app'}),null);
+  assert.equal(emailBaseUrl({GOJO_EMAIL_MODE:'production',URL:'https://gojo-restaurang.netlify.app'}),'https://gojo-restaurang.netlify.app');
+  assert.equal(emailBaseUrl({GOJO_EMAIL_MODE:'preview',GOJO_PREVIEW_BASE_URL:'https://deploy-preview-1--gojo-restaurang.netlify.app',SITE_NAME:'gojo-restaurang'}),'https://deploy-preview-1--gojo-restaurang.netlify.app');
+  assert.equal(emailBaseUrl({GOJO_EMAIL_MODE:'preview',GOJO_PREVIEW_BASE_URL:'https://evil.example',SITE_NAME:'gojo-restaurang'}),null);
+  assert.equal(emailBaseUrl({GOJO_EMAIL_MODE:'preview',GOJO_PREVIEW_BASE_URL:'https://deploy-preview-1--other-site.netlify.app',SITE_NAME:'gojo-restaurang'}),null);
+  assert.equal(emailBaseUrl({GOJO_EMAIL_MODE:'preview',GOJO_PREVIEW_BASE_URL:'https://deploy-preview-1--gojo-restaurang.netlify.app'}),null);
+  assert.equal(emailBaseUrl({GOJO_EMAIL_MODE:'production',URL:'http://untrusted.example'}),null);
+  assert.equal(emailBaseUrl({GOJO_EMAIL_MODE:'dev',URL:'https://gojo-restaurang.netlify.app'}),null);
 });
 test('confirmation email includes short reference, private fragment link and plaintext fallback',()=>{
   const r=buildBookingEmail(sample,'booking_created','private-token','https://gojo-restaurang.netlify.app');

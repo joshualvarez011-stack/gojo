@@ -4,22 +4,30 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 export function emailPermission(env, recipient) {
   if (!recipient) return { allowed:false, reason:'no_email' };
   if (!env.RESEND_API_KEY || !env.GOJO_EMAIL_FROM) return { allowed:false, reason:'not_configured' };
-  if (env.CONTEXT === 'production') return { allowed:true };
+  // CONTEXT and DEPLOY_PRIME_URL are build variables and cannot be relied on
+  // in Netlify Functions. Sending requires an explicit deploy-scoped mode.
+  if (env.GOJO_EMAIL_MODE === 'production') return { allowed:true };
   const allowed = (env.GOJO_EMAIL_TEST_RECIPIENTS || '').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
-  if (env.CONTEXT === 'deploy-preview' && env.GOJO_ENABLE_PREVIEW_EMAILS === 'true' &&
+  if (env.GOJO_EMAIL_MODE === 'preview' && env.GOJO_ENABLE_PREVIEW_EMAILS === 'true' &&
       allowed.includes(String(recipient).trim().toLowerCase())) return { allowed:true };
   return { allowed:false, reason:'preview_protected' };
 }
 
-// Prefer deployment-controlled origins, never untrusted request Host headers for links carrying access tokens.
+// Trusted configured origins only; never assemble a private access link from request Host headers.
 export function emailBaseUrl(env) {
-  const source = env.CONTEXT === 'production'
+  const source = env.GOJO_EMAIL_MODE === 'production'
     ? (env.GOJO_PUBLIC_BASE_URL || env.URL)
-    : env.CONTEXT === 'deploy-preview' ? env.DEPLOY_PRIME_URL : null;
+    : env.GOJO_EMAIL_MODE === 'preview' ? env.GOJO_PREVIEW_BASE_URL : null;
   if (!source) return null;
   try {
     const url = new URL(source);
     if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) return null;
+    if (env.GOJO_EMAIL_MODE === 'preview') {
+      // Limit preview links to this Netlify site and a specific PR hostname.
+      if (!/^[a-z0-9-]+$/i.test(env.SITE_NAME || '')) return null;
+      const expected = new RegExp('^deploy-preview-\\d+--' + env.SITE_NAME + '\\.netlify\\.app$', 'i');
+      if (!expected.test(url.hostname)) return null;
+    }
     return url.origin;
   } catch { return null; }
 }

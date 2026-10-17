@@ -32,12 +32,16 @@ Bokning, ombokning och avbokning skickar separata svenska HTML+textmejl. Bokning
    - `RESEND_API_KEY` (hemlig)
    - `GOJO_EMAIL_FROM` (t.ex. `GOJO <bokning@restaurangens-verifierade-domän.se>`)
    - `GOJO_PUBLIC_BASE_URL` (valfri HTTPS-produktionsdomän om Netlify URL inte räcker)
+   - `GOJO_EMAIL_MODE=production` (enbart i Production när restaurangen är redo att gå live)
 3. Sätt olika värden för **Production** och **Deploy Previews**. Ändrad variabel kräver en ny deploy.
-4. Utskick är blockerade utanför `CONTEXT=production` som standard. För kontrollerat test i Deploy Preview krävs även:
-   - `GOJO_ENABLE_PREVIEW_EMAILS=true`
-   - `GOJO_EMAIL_TEST_RECIPIENTS=din-testadress@example.com` (fler med kommatecken)
-   - `RESEND_API_KEY` och `GOJO_EMAIL_FROM` i Preview-context
-   - Netlifys `DEPLOY_PRIME_URL` används för den personliga previewlänken.
+4. Utskick är **avstängda i alla miljöer om `GOJO_EMAIL_MODE` saknas**. Netlify Functions har inte automatiskt tillgång till byggvariablerna `CONTEXT` eller `DEPLOY_PRIME_URL` – använd egna, kontextstyrda nycklar i Netlify.
+   - `GOJO_EMAIL_MODE=preview` (Deploy Previews)
+   - `GOJO_ENABLE_PREVIEW_EMAILS=true` (Deploy Previews)
+   - `GOJO_EMAIL_TEST_RECIPIENTS=din-registrerade-resend-adress@example.com` (Deploy Previews)
+   - `GOJO_PREVIEW_BASE_URL=https://deploy-preview-1--gojo-restaurang.netlify.app` (Deploy Previews, motsvarande rätt PR-nummer)
+   - `RESEND_API_KEY` och `GOJO_EMAIL_FROM` i Deploy Previews. För ren testavsändare: `GOJO <onboarding@resend.dev>`, och skicka bara till din egen registrerade Resend-adress.
+   - Testlänken valideras mot Netlifys read-only `SITE_NAME`. Riktig leverans via egen avsändardomän kräver verifiering.
+   - Om din Netlify-plan inte visar separat deploy-context väljer du att inte aktivera utskick förrän säker separation finns.
 5. Testa enbart med tillåten testadress: bokning → inkorg → hantera → ombokning → avbokning. Stäng sedan gärna preview-utskick.
 
 `accepted:true` betyder endast att Resend accepterade utskicket — inte att mejlet nått inkorgen. Verifierad domän, rättslig grund och godkänd hantering av personuppgifter krävs före skarp drift.
